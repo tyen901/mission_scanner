@@ -41,6 +41,20 @@ class HPPParser(BaseParser):
             if content is None:
                 raise UnicodeDecodeError(f"Failed to decode {file_path} with any encoding")
 
+            classes, equipment = self._parse_content(content, file_path)
+
+            return classes, equipment
+
+        except Exception as e:
+            logger.error(f"Error parsing HPP file {file_path}: {e}")
+            raise
+
+    def _parse_content(self, content: str, file_path: Path) -> Tuple[Set[MissionClass], Set[Equipment]]:
+        """Parse content string and return classes and equipment"""
+        classes = set()
+        equipment = set()
+        
+        try:
             # Remove comments and empty lines
             content = re.sub(r'//.*?\n|/\*.*?\*/', '', content, flags=re.S)
             content = re.sub(r'\n\s*\n', '\n', content)
@@ -84,11 +98,11 @@ class HPPParser(BaseParser):
                 # Process equipment arrays
                 self._process_equipment_arrays(class_content, array_patterns, equipment, file_path)
 
-            return classes, equipment
-
         except Exception as e:
-            logger.error(f"Error parsing HPP file {file_path}: {e}")
+            logger.error(f"Error parsing content from {file_path}: {e}")
             raise
+
+        return classes, equipment
 
     def _process_equipment_arrays(self, content: str, patterns: List[str], 
                                 equipment: Set[Equipment], file_path: Path) -> None:
