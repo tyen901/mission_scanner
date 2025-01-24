@@ -26,6 +26,28 @@ class MissionClass:
     def __hash__(self):
         return hash((self.name, self.parent, str(self.file_path)))
 
+    @property
+    def traits(self) -> List[str]:
+        """Get traits array if defined"""
+        if 'traits[]' not in self.properties:
+            return []
+        return [t.strip('"') for t in self.properties['traits[]'].split(',') if t.strip('"')]
+    
+    @property
+    def faces(self) -> List[str]:
+        """Get faces array if defined"""
+        if 'faces[]' not in self.properties:
+            return []
+        return [f.strip('"') for f in self.properties['faces[]'].split(',') if f.strip('"')]
+
+    def has_property(self, prop_name: str) -> bool:
+        """Check if class has specific property"""
+        return prop_name in self.properties
+
+    def get_property(self, prop_name: str, default=None) -> Optional[str]:
+        """Get property value with optional default"""
+        return self.properties.get(prop_name, default)
+
 @dataclass
 class ScanResult:
     """Result of a mission directory scan"""

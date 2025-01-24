@@ -225,3 +225,40 @@ def test_hpp_parser_multiple_missions(hpp_parser, sample_files):
         # At least one loadout file should have been tested
         assert loadout_files, f"No valid loadout files found in mission {mission_name}"
 
+def test_hpp_parser_class_properties(hpp_parser):
+    """Test extraction of class properties"""
+    content = """
+    class testMan {
+        displayName = "Test Unit";
+        traits[] = {"medic", "engineer"};
+        faces[] = {"face1", "face2"};
+        uniform[] = {"uniform1"};
+        items[] = {"item1", "item2"};
+        magazines[] += {"mag1"};
+    };
+    """
+    with (SAMPLE_DIR / 'test_properties.hpp').open('w') as f:
+        f.write(content)
+        
+    classes, _ = hpp_parser.parse(SAMPLE_DIR / 'test_properties.hpp')
+    test_class = next(c for c in classes if c.name == "testMan")
+    
+    # Test property access
+    assert test_class.get_property('displayName') == "Test Unit"
+    assert test_class.traits == ['medic', 'engineer']
+    assert test_class.faces == ['face1', 'face2']
+    assert test_class.has_property('uniform[]')
+    
+    # Cleanup
+    (SAMPLE_DIR / 'test_properties.hpp').unlink()
+
+def test_hpp_parser_filter_by_trait(hpp_parser, sample_files):
+    """Test filtering classes by trait"""
+    loadout_file = get_loadout_file(sample_files, 'Seaside_Sweep_2', 'blufor_loadout.hpp')
+    classes, _ = hpp_parser.parse(loadout_file)
+    
+    # Find all medic classes
+    medic_classes = [cls for cls in classes if 'medic' in cls.traits]
+    assert len(medic_classes) > 0
+    assert all('medic' in cls.traits for cls in medic_classes)
+

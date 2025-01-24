@@ -8,7 +8,11 @@ def read_file_content(file_path: Path) -> Tuple[Optional[str], str]:
     """
     Read file content trying multiple encodings.
     Returns tuple of (content, encoding_used)
+    Raises FileNotFoundError if file doesn't exist
     """
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+        
     encodings = [
         'utf-8',
         'cp1252',     # Windows Western European
@@ -28,7 +32,10 @@ def read_file_content(file_path: Path) -> Tuple[Optional[str], str]:
                 used_encoding = encoding
                 break
         except UnicodeDecodeError:
+            logger.debug(f"Failed to decode {file_path} with {encoding}")
             continue
+        except FileNotFoundError:
+            raise  # Re-raise FileNotFoundError
         except Exception as e:
             logger.warning(f"Error reading {file_path} with {encoding}: {e}")
             continue
@@ -39,6 +46,8 @@ def read_file_content(file_path: Path) -> Tuple[Optional[str], str]:
             with open(file_path, 'rb') as f:
                 content = f.read().decode('utf-8', errors='replace')
                 used_encoding = 'utf-8-replace'
+        except FileNotFoundError:
+            raise
         except Exception as e:
             logger.error(f"Failed to read {file_path} with any encoding: {e}")
             return None, ''

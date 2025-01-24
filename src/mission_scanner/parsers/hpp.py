@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from mission_scanner.parser import BaseParser
 from mission_scanner.models import MissionClass, Equipment
+from ..parsers.utils import read_file_content
 
 logger = logging.getLogger(__name__)
 
@@ -26,28 +27,16 @@ class HPPParser(BaseParser):
         equipment = set()
         
         try:
-            # Try UTF-8 first, then fallback to other encodings
-            content = None
-            encodings = ['utf-8', 'latin1', 'cp1252']
-            
-            for encoding in encodings:
-                try:
-                    with open(file_path, 'r', encoding=encoding) as f:
-                        content = f.read()
-                    break
-                except UnicodeDecodeError:
-                    continue
-                    
+            content, _ = read_file_content(file_path)
             if content is None:
-                raise UnicodeDecodeError(f"Failed to decode {file_path} with any encoding")
+                return classes, equipment
 
-            classes, equipment = self._parse_content(content, file_path)
-
-            return classes, equipment
-
+            return self._parse_content(content, file_path)
+        except FileNotFoundError:
+            raise  # Re-raise FileNotFoundError
         except Exception as e:
-            logger.error(f"Error parsing HPP file {file_path}: {e}")
-            raise
+            logger.debug(f"Error parsing HPP file {file_path}: {e}")
+            return classes, equipment
 
     def _parse_content(self, content: str, file_path: Path) -> Tuple[Set[MissionClass], Set[Equipment]]:
         """Parse content string and return classes and equipment"""
@@ -62,23 +51,16 @@ class HPPParser(BaseParser):
             # Updated class pattern to better handle nested content
             class_pattern = r'class\s+(\w+)(?:\s*:\s*(\w+))?\s*{((?:[^{}]|{(?:[^{}]|{[^{}]*})*})*?)}'
             
-            # First pass - extract all classes and their basic info
             for match in re.finditer(class_pattern, content, re.DOTALL):
-                class_content = match.group(3)  # Class content is in group 3
+                class_content = match.group(3)
                 name = match.group(1)
                 parent = match.group(2)
                 
-                # Skip config classes
                 if name in ('CfgPatches', 'CfgFunctions'):
                     continue
 
                 # Extract properties
-                properties = {}
-                # Handle simple properties
-                prop_pattern = r'(\w+)\s*=\s*"([^"]*)"'
-                for prop_match in re.finditer(prop_pattern, class_content):
-                    prop_name, prop_value = prop_match.groups()
-                    properties[prop_name] = prop_value
+                properties = self._process_properties(class_content)
 
                 # Create class
                 cls = MissionClass(
@@ -89,51 +71,100 @@ class HPPParser(BaseParser):
                 )
                 classes.add(cls)
 
-                # Parse arrays with fixed patterns
-                array_patterns = [
-                    r'(\w+)\[\]\s*=\s*{([^}]*)}',      # Standard arrays
-                    r'(\w+)\[\]\s*\+=\s*{([^}]*)}',    # Extended arrays
-                ]
-                
-                # Process equipment arrays
-                self._process_equipment_arrays(class_content, array_patterns, equipment, file_path)
+                # Process all equipment arrays
+                self._process_equipment_arrays(class_content, equipment, file_path)
 
         except Exception as e:
-            logger.error(f"Error parsing content from {file_path}: {e}")
+            logger.debug(f"Error parsing content from {file_path}: {e}")
             raise
 
         return classes, equipment
 
-    def _process_equipment_arrays(self, content: str, patterns: List[str], 
-                                equipment: Set[Equipment], file_path: Path) -> None:
-        """Process equipment arrays from class content"""
-        # Process regular string arrays
-        for pattern in patterns:
-            for match in re.finditer(pattern, content, re.DOTALL):  # Add re.DOTALL flag
-                category, items_str = match.groups()
-                
-                if not items_str.strip():
-                    continue
+    def _process_properties(self, content: str) -> Dict[str, str]:
+        """Extract all properties including arrays from class content"""
+        properties = {}
 
-                # Process direct string items and LIST_N macros
-                items = []
+        # Handle simple properties
+        prop_pattern = r'(\w+)\s*=\s*"([^"]*)"'
+        for prop_match in re.finditer(prop_pattern, content):
+            prop_name, prop_value = prop_match.groups()
+            properties[prop_name] = prop_value
+
+        # Handle array properties
+        array_patterns = [
+            r'(\w+)\[\]\s*=\s*{([^}]*)}',      # Standard arrays
+            r'(\w+)\[\]\s*\+=\s*{([^}]*)}',    # Extended arrays
+        ]
+        
+        for pattern in array_patterns:
+            for match in re.finditer(pattern, content, re.DOTALL):
+                prop_name, items_str = match.groups()
+                prop_key = f"{prop_name}[]"
                 
-                # Handle direct string items - update pattern to handle multi-line
-                direct_items = []
+                # Handle existing array extensions (+=)
+                if "+=" in match.group(0):
+                    if prop_key in properties:
+                        items_str = properties[prop_key] + "," + items_str
+
+                # Clean and store array content
+                items = []
                 for item_match in re.finditer(r'"([^"]*)"', items_str):
                     item = item_match.group(1).strip()
-                    if item:  # Only add non-empty strings
-                        direct_items.append(item)
-                items.extend(direct_items)
+                    if item:
+                        items.append(item)  # Store without quotes
                 
-                # Handle LIST_N macros - no changes needed
+                if items:
+                    properties[prop_key] = ",".join(items)
+
+        return properties
+
+    def _process_equipment_arrays(self, content: str, equipment: Set[Equipment], file_path: Path) -> None:
+        """Process equipment arrays from class content"""
+        # Define equipment array types
+        EQUIPMENT_TYPES = {
+            'magazines', 'items', 'linkedItems', 'uniformItems', 'vestItems', 
+            'backpackItems', 'weapons', 'primary', 'secondary', 'handgun',
+            'attachment', 'uniform', 'vest', 'backpack', 'goggles', 'binocular',
+            'map', 'gps', 'compass', 'watch', 'radio'
+        }
+        
+        # Updated array patterns with consistent spacing
+        array_patterns = [
+            # Standard array definitions
+            r'(\w+)\[\]\s*=\s*{([^}]*)}',
+            # Array extensions
+            r'(\w+)\[\]\s*\+=\s*{([^}]*)}',
+            # Single item assignments
+            r'(\w+)\s*=\s*"([^"]*)"',
+            # Additional pattern for linked items
+            r'(\w+)\[\]\s*=\s*\{([^}]*?)\}'  # Less greedy match
+        ]
+
+        for pattern in array_patterns:
+            for match in re.finditer(pattern, content, re.DOTALL):
+                category, items_str = match.groups()
+                
+                # Skip non-equipment arrays
+                if category not in EQUIPMENT_TYPES:
+                    continue
+
+                # Process items string
+                items = []
+                
+                # Handle quoted strings
+                for item_match in re.finditer(r'"([^"]*)"', items_str):
+                    item = item_match.group(1).strip()
+                    if item:  # Skip empty strings
+                        items.append(item)
+                
+                # Handle LIST_N macros
                 for macro_match in re.finditer(r'LIST_(\d+)\("([^"]+)"\)', items_str):
                     count = int(macro_match.group(1))
-                    item = macro_match.group(2)
-                    if item.strip():
+                    item = macro_match.group(2).strip()
+                    if item:
                         items.extend([item] * count)
 
-                # Add all found items
+                # Add equipment items
                 for item in items:
                     equipment.add(Equipment(
                         name=item,

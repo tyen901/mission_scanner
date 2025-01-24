@@ -6,6 +6,7 @@ import json
 
 from mission_scanner.models import Equipment, MissionClass
 from mission_scanner.parser import BaseParser
+from ..parsers.utils import read_file_content
 
 class EXTParser(BaseParser):
     """Parser for EXT configuration files"""
@@ -13,8 +14,9 @@ class EXTParser(BaseParser):
         classes = set()
         equipment = set()
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        content, _ = read_file_content(file_path)
+        if content is None:
+            return classes, equipment
             
         # Parse class definitions in EXT format
         class_matches = re.finditer(
