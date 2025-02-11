@@ -24,7 +24,7 @@ exclude_lines = [
 ]
 
 [tool.setuptools_scm]
-write_to = "src/asset_scanner/_version.py"
+write_to = "src/mission_scanner/_version.py"
 version_scheme = "semver"
 local_scheme = "node-and-date"
 
@@ -32,9 +32,9 @@ local_scheme = "node-and-date"
 package-dir = {"" = "src"}
 
 [project]
-name = "asset_scanner"
+name = "mission_scanner"
 description = "A simple asset scanner for Arma 3 modding projects"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dynamic = ["version"]
 
 [project.optional-dependencies]
