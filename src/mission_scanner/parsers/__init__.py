@@ -42,4 +42,5 @@ __all__ = [
     'get_parser',
     'HppParser',
     'SqmParser',
+    'SqfParser',
 ]
