@@ -1,7 +1,6 @@
 import logging
-import re
 from pathlib import Path
-from typing import Set, Dict, Any, List, Optional, cast
+from typing import Set, Dict, List, cast
 
 from mission_scanner.parser import BaseParser, ParseResult
 from mission_scanner.models import Equipment, MissionClass
