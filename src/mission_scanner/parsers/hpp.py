@@ -1,174 +1,112 @@
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
-from dataclasses import dataclass
+from typing import Dict, Set, Any
 
-from mission_scanner.parser import BaseParser
+from mission_scanner.parser import BaseParser, ParseResult
 from mission_scanner.models import MissionClass, Equipment
-from ..parsers.utils import read_file_content
+from mission_scanner.parser import read_file_content
+
+from class_scanner import ClassParser, PropertyValue
 
 logger = logging.getLogger(__name__)
 
-class HPPParser(BaseParser):
+class HppParser(BaseParser):
     """Parser for HPP configuration files"""
     
     def __init__(self):
-        self._nested_level = 0
-        self._max_nested_level = 10
-        self._class_cache = {}
-        self._nested_content = set()
-        self._classes = {}
-        self._equipment = []
+        self.class_parser = ClassParser()
+        # Add regex for matching macros
+        self.macro_pattern = re.compile(r'LIST_\d+\("([^"]*)"\)')
 
-    def parse(self, file_path: Path) -> Tuple[Set[MissionClass], Set[Equipment]]:
+    def parse(self, file_path: Path) -> ParseResult:
         """Parse HPP file and return classes and equipment"""
-        classes = set()
-        equipment = set()
+        classes: Dict[str, MissionClass] = {}
+        equipment: Set[Equipment] = set()
         
         try:
             content, _ = read_file_content(file_path)
             if content is None:
-                return classes, equipment
+                return ParseResult(classes, equipment)
 
-            return self._parse_content(content, file_path)
-        except FileNotFoundError:
-            raise  # Re-raise FileNotFoundError
-        except Exception as e:
-            logger.debug(f"Error parsing HPP file {file_path}: {e}")
-            return classes, equipment
-
-    def _parse_content(self, content: str, file_path: Path) -> Tuple[Set[MissionClass], Set[Equipment]]:
-        """Parse content string and return classes and equipment"""
-        classes = set()
-        equipment = set()
-        
-        try:
-            # Remove comments and empty lines
-            content = re.sub(r'//.*?\n|/\*.*?\*/', '', content, flags=re.S)
-            content = re.sub(r'\n\s*\n', '\n', content)
-
-            # Updated class pattern to better handle nested content
-            class_pattern = r'class\s+(\w+)(?:\s*:\s*(\w+))?\s*{((?:[^{}]|{(?:[^{}]|{[^{}]*})*})*?)}'
+            # Parse with ClassParser
+            parsed = self.class_parser.parse_class_definitions(content)
             
-            for match in re.finditer(class_pattern, content, re.DOTALL):
-                class_content = match.group(3)
-                name = match.group(1)
-                parent = match.group(2)
-                
-                if name in ('CfgPatches', 'CfgFunctions'):
-                    continue
+            # Convert parsed data to MissionClass and Equipment
+            for section_name, section_data in parsed.items():
+                for class_name, class_data in section_data.items():
+                    # Create MissionClass
+                    mission_class = MissionClass(
+                        name=class_name,
+                        parent=class_data["parent"],
+                        properties=class_data["properties"],
+                        file_path=file_path
+                    )
+                    classes[class_name] = mission_class
+                    
+                    # Process equipment arrays
+                    self._process_equipment_arrays(
+                        class_data["properties"],
+                        equipment,
+                        file_path
+                    )
 
-                # Extract properties
-                properties = self._process_properties(class_content)
-
-                # Create class
-                cls = MissionClass(
-                    name=name,
-                    parent=parent,
-                    properties=properties,
-                    file_path=file_path
-                )
-                classes.add(cls)
-
-                # Process all equipment arrays
-                self._process_equipment_arrays(class_content, equipment, file_path)
-
-        except Exception as e:
-            logger.debug(f"Error parsing content from {file_path}: {e}")
+        except FileNotFoundError:
             raise
+        except Exception as e:
+            logger.error(f"Error parsing HPP file {file_path}: {e}", exc_info=True)
+            
+        return ParseResult(classes, equipment)
 
-        return classes, equipment
-
-    def _process_properties(self, content: str) -> Dict[str, str]:
-        """Extract all properties including arrays from class content"""
-        properties = {}
-
-        # Handle simple properties
-        prop_pattern = r'(\w+)\s*=\s*"([^"]*)"'
-        for prop_match in re.finditer(prop_pattern, content):
-            prop_name, prop_value = prop_match.groups()
-            properties[prop_name] = prop_value
-
-        # Handle array properties
-        array_patterns = [
-            r'(\w+)\[\]\s*=\s*{([^}]*)}',      # Standard arrays
-            r'(\w+)\[\]\s*\+=\s*{([^}]*)}',    # Extended arrays
-        ]
-        
-        for pattern in array_patterns:
-            for match in re.finditer(pattern, content, re.DOTALL):
-                prop_name, items_str = match.groups()
-                prop_key = f"{prop_name}[]"
-                
-                # Handle existing array extensions (+=)
-                if "+=" in match.group(0):
-                    if prop_key in properties:
-                        items_str = properties[prop_key] + "," + items_str
-
-                # Clean and store array content
-                items = []
-                for item_match in re.finditer(r'"([^"]*)"', items_str):
-                    item = item_match.group(1).strip()
-                    if item:
-                        items.append(item)  # Store without quotes
-                
-                if items:
-                    properties[prop_key] = ",".join(items)
-
-        return properties
-
-    def _process_equipment_arrays(self, content: str, equipment: Set[Equipment], file_path: Path) -> None:
-        """Process equipment arrays from class content"""
-        # Define equipment array types
+    def _process_equipment_arrays(self, properties: Dict[str, Any], equipment: Set[Equipment], file_path: Path) -> None:
+        """Process equipment arrays from class properties"""
         EQUIPMENT_TYPES = {
             'magazines', 'items', 'linkedItems', 'uniformItems', 'vestItems', 
             'backpackItems', 'weapons', 'primary', 'secondary', 'handgun',
-            'attachment', 'uniform', 'vest', 'backpack', 'goggles', 'binocular',
+            'uniform', 'vest', 'backpack', 'goggles', 'binocular',
             'map', 'gps', 'compass', 'watch', 'radio'
         }
         
-        # Updated array patterns with consistent spacing
-        array_patterns = [
-            # Standard array definitions
-            r'(\w+)\[\]\s*=\s*{([^}]*)}',
-            # Array extensions
-            r'(\w+)\[\]\s*\+=\s*{([^}]*)}',
-            # Single item assignments
-            r'(\w+)\s*=\s*"([^"]*)"',
-            # Additional pattern for linked items
-            r'(\w+)\[\]\s*=\s*\{([^}]*?)\}'  # Less greedy match
-        ]
-
-        for pattern in array_patterns:
-            for match in re.finditer(pattern, content, re.DOTALL):
-                category, items_str = match.groups()
+        for key, value in properties.items():
+            if not isinstance(value, PropertyValue):
+                continue
                 
-                # Skip non-equipment arrays
-                if category not in EQUIPMENT_TYPES:
-                    continue
-
-                # Process items string
-                items = []
+            base_name = key.rstrip('[]')
+            if base_name not in EQUIPMENT_TYPES:
+                continue
                 
-                # Handle quoted strings
-                for item_match in re.finditer(r'"([^"]*)"', items_str):
-                    item = item_match.group(1).strip()
-                    if item:  # Skip empty strings
-                        items.append(item)
+            # Handle array values
+            if value.is_array:
+                # Clean macro from each array value
+                cleaned_values = [
+                    self._clean_macro(item) for item in value.array_values
+                    if item  # Skip empty strings
+                ]
                 
-                # Handle LIST_N macros
-                for macro_match in re.finditer(r'LIST_(\d+)\("([^"]+)"\)', items_str):
-                    count = int(macro_match.group(1))
-                    item = macro_match.group(2).strip()
-                    if item:
-                        items.extend([item] * count)
-
+                # Update the PropertyValue with cleaned values
+                value.array_values = cleaned_values
+                
                 # Add equipment items
-                for item in items:
+                for item in cleaned_values:
                     equipment.add(Equipment(
                         name=item,
-                        type=category,
-                        category=category,
+                        type=base_name,
+                        category=base_name,
                         file_path=file_path
                     ))
+            # Handle single values
+            elif value.raw_value:
+                cleaned_value = self._clean_macro(value.raw_value)
+                value.raw_value = cleaned_value
+                equipment.add(Equipment(
+                    name=cleaned_value,
+                    type=base_name,
+                    category=base_name,
+                    file_path=file_path
+                ))
+
+    def _clean_macro(self, value: str) -> str:
+        """Clean macros from a value string"""
+        if match := self.macro_pattern.match(value.strip()):
+            return match.group(1)
+        return value.strip('" ')

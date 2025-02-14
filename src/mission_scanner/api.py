@@ -1,8 +1,6 @@
 import logging
-import re
-from typing import Dict, List, Optional, Set, Pattern, Iterator, Callable
+from typing import Dict, List, Optional, Set, Pattern, Callable
 from pathlib import Path
-from datetime import datetime
 import threading
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
@@ -12,7 +10,7 @@ from .models import ScanResult
 from .scanner import MissionScanner
 
 @dataclass
-class MIssionScannerAPIConfig:
+class MissionScannerAPIConfig:
     """Configuration settings for AssetAPI"""
     cache_max_age: int = 3600
     cache_max_size: int = 1_000_000
@@ -26,8 +24,8 @@ class MissionScannerAPI:
     API_VERSION = "1.0"
     VALID_EXTENSIONS = {'.sqf', '.hpp', '.ext', '.xml'}
     
-    def __init__(self, cache_dir: Path, config: Optional[MIssionScannerAPIConfig] = None):
-        self.config = config or MIssionScannerAPIConfig()
+    def __init__(self, cache_dir: Path, config: Optional[MissionScannerAPIConfig] = None):
+        self.config = config or MissionScannerAPIConfig()
         if not cache_dir.is_absolute():
             cache_dir = cache_dir.resolve()
         if not cache_dir.exists():

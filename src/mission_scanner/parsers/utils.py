@@ -4,11 +4,12 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-def read_file_content(file_path: Path) -> Tuple[Optional[str], str]:
+def read_file_content(file_path: Path) -> Tuple[Optional[str], Optional[str]]:
     """
     Read file content trying multiple encodings.
     Returns tuple of (content, encoding_used)
-    Raises FileNotFoundError if file doesn't exist
+    Both values may be None if file cannot be read.
+    Raises FileNotFoundError if file doesn't exist.
     """
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -50,6 +51,6 @@ def read_file_content(file_path: Path) -> Tuple[Optional[str], str]:
             raise
         except Exception as e:
             logger.error(f"Failed to read {file_path} with any encoding: {e}")
-            return None, ''
+            return None, None
             
     return content, used_encoding

@@ -1,18 +1,16 @@
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple
-import xml.etree.ElementTree as ET
-import json
+from typing import Dict, Set, Tuple
 
 from mission_scanner.models import Equipment, MissionClass
 from mission_scanner.parser import BaseParser
 from ..parsers.utils import read_file_content
 
-class SQFParser(BaseParser):
+class SqfParser(BaseParser):
     """Parser for SQF script files"""
     def parse(self, file_path: Path) -> Tuple[Set[MissionClass], Set[Equipment]]:
-        classes = set()
-        equipment = set()
+        classes: Set[MissionClass] = set()
+        equipment: Set[Equipment] = set()
         
         content, _ = read_file_content(file_path)
         if content is None:
@@ -28,7 +26,7 @@ class SQFParser(BaseParser):
         for match in class_matches:
             name = match.group(1)
             parent = match.group(2)
-            properties = {}
+            properties: Dict[str, str] = {}
             
             # Extract properties from class body
             if match.group(3):

@@ -1,13 +1,11 @@
-import re
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Set, Tuple
 import xml.etree.ElementTree as ET
-import json
 
 from mission_scanner.parser import BaseParser
 from ..models import MissionClass, Equipment
 
-class XMLParser(BaseParser):
+class XmlParser(BaseParser):
     """Parser for XML files"""
     def parse(self, file_path: Path) -> Tuple[Set[MissionClass], Set[Equipment]]:
         classes = set()

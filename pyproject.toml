@@ -1,47 +1,25 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "mission_scanner"
+version = "0.1.0"
+description = "A simple asset scanner for Arma 3 modding projects"
+authors = ["Tom Campbell <tyen901@gmail.com>"]
+readme = "README.md"
+packages = [{include = "mission_scanner", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.13"
+class-scanner = { path = "../class_scanner", develop = true }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-cov = "^6.0.0"
+setuptools = "^75.8.0"
+wheel = "^0.45.1"
 
 [tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra -q --cov=src"
-testpaths = [
-    "tests"
-]
-pythonpath = [
-    "src"
-]
-
-[tool.coverage.run]
-source = ["src"]
-branch = true
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if __name__ == .__main__.:"
-]
-
-[tool.setuptools_scm]
-write_to = "src/mission_scanner/_version.py"
-version_scheme = "semver"
-local_scheme = "node-and-date"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[project]
-name = "mission_scanner"
-description = "A simple asset scanner for Arma 3 modding projects"
-requires-python = ">=3.9"
-dynamic = ["version"]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=6.2.2",
-    "pytest-cov",
-    "setuptools>=45",
-    "wheel",
-    "setuptools_scm>=6.2"
-]
+pythonpath = ["src"]
+testpaths = ["tests"]

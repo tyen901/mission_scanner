@@ -46,3 +46,4 @@ logs/
 Thumbs.db
 config_analysis.txt
 temp/
+poetry.lock

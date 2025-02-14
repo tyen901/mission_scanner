@@ -2,7 +2,12 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../class_scanner"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"hide-files.files": []
+	}
 }

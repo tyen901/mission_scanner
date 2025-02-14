@@ -7,10 +7,11 @@ class Equipment:
     """Equipment found in mission files"""
     name: str
     type: Optional[str] = None
-    category: Optional[str] = None  # Add category field
+    category: Optional[str] = None
     class_name: Optional[str] = None
     properties: Dict[str, str] = field(default_factory=dict)
     file_path: Optional[Path] = None
+    count: int = 1  # Add count field with default value of 1
 
     def __hash__(self):
         return hash((self.name, self.type, self.category, self.class_name, str(self.file_path)))

@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
-from typing import Set, Dict, Optional, List, Pattern
-from datetime import datetime
+from typing import Dict, List, Pattern
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .models import ScanResult, MissionClass, Equipment
