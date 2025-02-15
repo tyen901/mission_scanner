@@ -3,15 +3,11 @@ from pathlib import Path
 from .base import BaseParser
 from .sqf import SqfParser
 from .hpp import HppParser
-from .ext import ExtParser
-from .xml import XmlParser
 from .sqm import SqmParser
 
 PARSER_MAP = {
     '.sqf': SqfParser(),
     '.hpp': HppParser(), 
-    '.ext': ExtParser(),
-    '.xml': XmlParser(),
     '.sqm': SqmParser(),
 }
 def get_parser(file_path: Path) -> Optional[BaseParser]:
