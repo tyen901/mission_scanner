@@ -1,9 +1,9 @@
 from typing import Optional
 from pathlib import Path
-from .base import BaseParser
-from .sqf import SqfParser
-from .hpp import HppParser
-from .sqm import SqmParser
+from .base_parser import BaseParser
+from .sqf_parser import SqfParser
+from .hpp_parser import HppParser
+from .sqm_parser import SqmParser
 
 PARSER_MAP = {
     '.sqf': SqfParser(),

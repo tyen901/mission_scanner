@@ -1,5 +1,5 @@
 from pathlib import Path
-from mission_scanner.parsers.sqf import SqfParser
+from mission_scanner.parsers.sqf_parser import SqfParser
 from .conftest import SAMPLE_DATA
 
 def test_parse_real_curated_gear():

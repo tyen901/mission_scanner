@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Set
 from .models import MissionClass, Equipment
-from .parsers.utils import read_file_content
+from .parsers.parser_utils import read_file_content
 
 logger = logging.getLogger(__name__)
 
