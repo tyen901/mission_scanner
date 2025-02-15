@@ -11,11 +11,12 @@ SAMPLE_MISSIONS_FOLDERS = [
 # Base path for sample data
 SAMPLE_DATA = Path(__file__).parent / "sample_data"
 
-SAMPLE_LOADOUT = SAMPLE_DATA / "example_loadout.json"
+EXAMPLE_CURATED_ARSENAL = SAMPLE_DATA / "example_curated_arsenal.hpp"
+EXAMPLE_CURATED_GEAR = SAMPLE_DATA / "example_curated_gear.hpp"
+EXAMPLE_LOADOUT = SAMPLE_DATA / "example_loadout.hpp"
+EXAMPLE_MISSION = SAMPLE_DATA / "example_mission.sqm"
 
 SAMPLE_MISSIONS = [
     SAMPLE_DATA / mission for mission in SAMPLE_MISSIONS_FOLDERS
 ]
 
-# Add example mission
-EXAMPLE_MISSION = SAMPLE_DATA / "example_mission.sqm"
