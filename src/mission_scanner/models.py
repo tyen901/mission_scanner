@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Set, List, Optional
 
-@dataclass(frozen=True)  # Make class immutable
+@dataclass(frozen=True)
 class Equipment:
     """Equipment found in mission files"""
     name: str
@@ -11,12 +11,12 @@ class Equipment:
     class_name: Optional[str] = None
     properties: Dict[str, str] = field(default_factory=dict)
     file_path: Optional[Path] = None
-    count: int = 1  # Add count field with default value of 1
+    count: int = 1
 
     def __hash__(self):
         return hash((self.name, self.type, self.category, self.class_name, str(self.file_path)))
 
-@dataclass(frozen=True)  # Make class immutable
+@dataclass(frozen=True)
 class MissionClass:
     """Class definition found in mission files"""
     name: str

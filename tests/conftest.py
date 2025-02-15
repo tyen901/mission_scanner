@@ -16,6 +16,8 @@ SAMPLE_MISSIONS = [
 
 EXAMPLE_LOADOUT = SAMPLE_DATA_FOLDER / "example_loadout.hpp"
 
+EXAMPLE_BRIEFING_FILE = SAMPLE_DATA_FOLDER / "example_briefing.sqf"
+
 EXAMPLE_CURATED_GEAR_FILE = SAMPLE_DATA_FOLDER / "example_curated_gear.sqf"
 EXAMPLE_CURATED_GEAR_EXPECTED_DATA = {
         "ACE_epinephrine",
