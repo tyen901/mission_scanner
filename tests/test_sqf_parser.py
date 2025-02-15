@@ -1,7 +1,9 @@
 from pathlib import Path
 from mission_scanner.parsers.sqf_parser import SqfParser
 from .conftest import EXAMPLE_CURATED_ARSENAL, EXAMPLE_CURATED_ARSENAL_EXPECTED_ITEMS, EXAMPLE_CURATED_GEAR_FILE, EXAMPLE_CURATED_GEAR_EXPECTED_DATA, EXAMPLE_MISSION_EXPECTED_ITEMS, EXAMPLE_MISSION_FILE, EXAMPLE_BRIEFING_FILE
+import logging
 
+logger = logging.getLogger(__name__)
 
 def test_parse_curated_gear():
     parser = SqfParser()
@@ -76,7 +78,7 @@ def test_parse_equipment_assignments():
     path.unlink()
 
 
-def test_parse_equipment_additions():
+def test_parse_equipment_additions_type_a():
     parser = SqfParser()
     test_content = '''
         for "_i" from 1 to 4 do {_unit addItemToUniform "ACE_fieldDressing";};
@@ -99,6 +101,55 @@ def test_parse_equipment_additions():
         "rhs_mag_30Rnd_556x45_M855A1_Stanag",
         "G_Combat",
         "ItemMap",
+        "rhsusf_acc_acog"
+    }
+
+    found_items = {eq.name for eq in result.equipment}
+    assert found_items == expected_items
+
+    path.unlink()
+
+def test_parse_equipment_additions_type_b():
+    parser = SqfParser()
+    test_content = '''
+        _unit linkItem "ItemMap";
+        _unit addWeaponItem ["rhs_weap_m4a1", "rhsusf_acc_acog", true];
+    '''
+
+    path = Path("test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+
+    result = parser.parse(path)
+
+    expected_items = {
+        "rhs_weap_m4a1",
+        "ItemMap",
+        "rhsusf_acc_acog"
+    }
+
+    found_items = {eq.name for eq in result.equipment}
+    assert found_items == expected_items
+
+    path.unlink()
+
+
+def test_parse_equipment_additions_type_c():
+    parser = SqfParser()
+    test_content = '''
+        _unit addWeapon "rhs_weap_m4a1";
+        _unit addWeaponItem ["rhs_weap_m4a2", "rhsusf_acc_acog", true];
+    '''
+
+    path = Path("test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+
+    result = parser.parse(path)
+
+    expected_items = {
+        "rhs_weap_m4a1",
+        "rhs_weap_m4a2",
         "rhsusf_acc_acog"
     }
 
@@ -313,7 +364,7 @@ private _itemMod =
     result = parser.parse(path)
     assert len(result.equipment) == 8, "Should parse 8 items"
 
-def test_edge_cases():
+def test_edge_cases_A(tmp_path : Path):
     parser = SqfParser()
     test_content = '''
 //Match unitrole name with the classnames in loadout.
@@ -333,7 +384,48 @@ _action =
     [0,0,0],
     3
 ] call ace_interact_menu_fnc_createAction;
+'''
+
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
     
+    
+def test_edge_cases_B(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+_action = 
+[
+    "personal_arsenal","Personal Arsenal","\\A3\\ui_f\\data\\igui\\cfg\\weaponicons\\MG_ca.paa",
+    {
+        [arsenal, _player] call ace_arsenal_fnc_openBox
+    },
+    { 
+        (player distance2d (player getVariable ["startpos",[0,0,0]])) < 200
+    },
+    {},
+    [],
+    [0,0,0],
+    3
+] call ace_interact_menu_fnc_createAction;
+'''
+
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+ 
+    
+def test_edge_cases_C(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
 //Get parameters
 for "_parameterIndex" from 1 to (count _this - 1) do 
 {
@@ -355,10 +447,336 @@ for "_parameterIndex" from 1 to (count _this - 1) do
 };
 '''
 
-    path = Path("test.sqf")
+    path = Path(tmp_path / "test.sqf")
     with open(path, "w") as f:
         f.write(test_content)
         
     result = parser.parse(path)
     print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+
+def test_edge_cases_D(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+    while {{alive _x} count (units _group) > 0} do 
+{
+	sleep 10;
+	
+	if ([getPos (leader _group), _radius] call jebus_fnc_playerInRadius) then 
+	{
+		if (_group getVariable "IsCached") then 
+		{
+			if (_debug) then {systemChat format["%1 - Uncaching group.", _group]};
+			{
+				(vehicle _x) hideObjectGlobal false;
+				_x enableSimulationGlobal true;
+			} forEach units _group;
+			
+			_group setVariable ["IsCached", false];
+		};
+	} 
+	else 
+	{
+		if (!(_group getVariable "IsCached")) then 
+		{
+			if (_debug) then {systemChat format["%1 - Caching group.", _group]};
+			{
+				(vehicle _x) hideObjectGlobal true;
+				_x enableSimulationGlobal false;
+			} forEach units _group;
+			
+			_group setVariable ["IsCached", true];
+		};
+	};
+};
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+    
+    
+def test_edge_cases_E(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+private _response = 
+[
+	"
+		Welcome to the Mission! 
+		<br/><br/>
+		You can use the 'TELEPORT TO GROUP' action in your ACE self interaction menu to teleport to your group. 
+		<br/><br/>
+		The action will disappear once 10 minutes has passed since you've joined or moving too far away from the spawn area.
+	", "JIP TELEPORT AVAILABLE", true, false
+] call BIS_fnc_guiMessage;
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+    
+    
+def test_edge_cases_F(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+private _jipActionCode = 
+{
+	private _target = [] call pca_fnc_jipChooseTarget;
+	private _vehSpot = [_target] call pca_fnc_jipEmptySeat;
+	
+	if (!_vehSpot && {speed _target > 19 || {(getPosATL _target) select 2 > 5}}) exitWith 
+	{
+		private _title1 = "<t color = '#FFBA26' size='1'>CAN NOT TELEPORT!</t><br/>";
+		private _title2 = "<t color = '#FFFFFF' size='1'>Teleport target moving too fast or currently in air. Try again in a little bit!</t><br/>";
+		[_title1 + _title2, 2, player, 14] call ace_common_fnc_displayTextStructured;
+	};
+	
+	player allowDamage false;
+	
+	cutText ["", "BLACKOUT", 1, true];
+	
+	if (_vehSpot) then 
+	{
+		player moveInAny vehicle _target;
+	}
+	else
+	{
+		player setPosATL (_target getPos [3, getDir _target - 180]);
+	};
+	
+	cutText ["", "BLACK IN", 1, true];
+	player allowDamage true;
+};
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+
+def test_edge_cases_G(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+//0 = player execVM "loadouts\arsenal.sqf";
+
+"ColorCorrections" ppEffectEnable true;
+"ColorCorrections" ppEffectAdjust 
+[
+	1.04, 
+	1.02, 
+	-0.02, 
+	[0.1, 0.4, 0.4, 0.04], 
+	[1, 1, 1, 1.04], 
+	[0.299, 0.587, 0.114, 0]
+];
+"ColorCorrections" ppEffectCommit 0;
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+
+def test_edge_cases_H(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+private 
+[
+	"_unit",
+	"_cacheRadius",
+	"_debug",
+	"_exitTrigger",
+	"_firstLoop",
+	"_initString",
+	"_initialDelay",
+    "_lives",
+	"_newGroup",
+	"_pauseRadius",
+	"_reduceRadius",
+	"_respawnDelay",
+	"_respawnMarkers",
+	"_respawnPos",
+	"_special",
+	"_tmpRespawnPos",
+	"_tmpZone",
+	"_trigger",
+	"_unitSide",
+	"_synchronizedObjectsList"
+];
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+
+def test_edge_cases_I(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+if (_overwatch isEqualTo []) then 
+{
+	private _distance2D = ((_unit distance2D _target) * 0.66) min 250;
+	_overwatch = selectBestPlaces [_target, _distance2D, "(2*hills) + (2*forest+trees+houses) - (2*meadow) - (2*windy) - (2*sea) - (10*deadBody)", 100, 3] apply {[(_x select 0) distance2D _unit, _x select 0]};
+	_overwatch = _overwatch select {!(surfaceIsWater (_x select 1))};
+	_overwatch sort true;
+	_overwatch = _overwatch apply {_x select 1};
+	
+	if (_overwatch isEqualTo []) then 
+	{
+		_overwatch pushBack ([getPos _unit, _distance2D, 100, 8, _target] call pca_fnc_findOverwatch);
+	};
+	
+	_overwatch = _overwatch select 0;
+};'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+    
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+            
+def test_edge_cases_J(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+_unit setVariable ["ace_medical_damageThreshold", (random [0.8, 1.2, 1.5]), true];
+_unit setVariable ["BIS_enableRandomization", false];
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+
+def test_edge_cases_K(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+private _facewearPoolWeighted = selectRandomWeighted 
+[
+	"", 4,
+	"", 1
+];
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+
+def test_edge_cases_L(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+switch (true) do 
+{
+	//Rifleman
+	case (_unitRole == "rm") : 
+	{
+		[arsenal, (_itemGear + _itemUniform + _itemVest + _itemHeadgear + _itemBackpack + _itemCosmetic + _itemMisc + _itemAcc + _itemWeapRifle + _itemAmmo + _itemExplosive)] call ace_arsenal_fnc_initBox;
+	};
+	//Rifleman (LAT)
+	case (_unitRole == "rm_lat") : 
+	{
+		[arsenal, (_itemGear + _itemUniform + _itemVest + _itemHeadgear + _itemBackpack + _itemCosmetic + _itemMisc + _itemAcc + _itemWeapRifle + _itemWeapLAT + _itemAmmo + _itemExplosive)] call ace_arsenal_fnc_initBox;
+	};
+	//Automatic Rifle
+	case (_unitRole == "ar") : 
+	{
+		[arsenal, (_itemGear + _itemUniform + _itemVest + _itemHeadgear + _itemBackpack + _itemCosmetic + _itemMisc + _itemAcc + _itemWeapAR + _itemWeapPistol + _itemAmmoAR + _itemExplosive)] call ace_arsenal_fnc_initBox;
+	};
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+ 
+def test_edge_cases_M(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+else
+{
+	if (_backpackChance > random 100) then 
+	{
+		_unit addBackpack _backpackPoolWeighted;
+	};
+};'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+    
+    result = parser.parse(path)
+    print (result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+    
+def test_edge_cases_N(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+/**
+ * Launch the tool helping to edit the logistics configuration.
+ * 
+ * THIS TOOL IS UNOFFICIAL AND FOR EXPERT ONLY !
+ * READ THE PDF DOCUMENTATION TO KNOW HOW TO USE IT !
+ * 
+ * @usage Don't forget to fill the list of class names to configure in list_of_objects_to_config.sqf.
+ * @usage execVM "R3F_LOG\addons_config\logistics_config_maker_tool\launch_config_tool.sqf";
+ * 
+ * Copyright (C) 2014 Team ~R3F~
+ * 
+ * This program is free software under the terms of the GNU General Public License version 3.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+TAB_class_names_to_config = [
+	#include "list_of_objects_to_config.sqf"
+];
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path
+                , "w") as f:
+            f.write(test_content)
+            
+    result = parser.parse(path)
+    logger.debug(result.equipment)
+    assert len(result.equipment) == 0, "Should not parse equipment from script"
+
+ 
+def test_edge_cases_O(tmp_path : Path):
+    parser = SqfParser()
+    test_content = '''
+player addAction ["Dump config to RPT", "R3F_LOG\addons_config\logistics_config_maker_tool\dump_config.sqf"];
+player addAction ["Set new spawn position", {R3F_LOG_spawn_position = player modelToWorld [0, 30, 0]; systemChat "New spawn position defined.";}];
+player addEventHandler ["HandleDamage", {0}];
+'''
+    path = Path(tmp_path / "test.sqf")
+    with open(path, "w") as f:
+        f.write(test_content)
+        
+    result = parser.parse(path)
+    logger.debug(result.equipment)
     assert len(result.equipment) == 0, "Should not parse equipment from script"

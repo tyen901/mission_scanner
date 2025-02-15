@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, Set
 
 from mission_scanner.models import Equipment, MissionClass
-from mission_scanner.parser import BaseParser, ParseResult
+from mission_scanner.base_parser import BaseParser, ParseResult
 from mission_scanner.parser import read_file_content
 
 class SqfParser(BaseParser):
@@ -57,6 +57,28 @@ class SqfParser(BaseParser):
             '_player'  # Player reference
         }
         
+        # Add pool/list variable patterns to ignored variables
+        self._ignored_vars.update({
+            '_backpackPoolWeighted',
+            '_uniformPoolWeighted', 
+            '_vestPoolWeighted',
+            '_headgearPoolWeighted',
+            '_weaponPoolWeighted',
+            '_itemPoolWeighted',
+            '_backpackPool',
+            '_uniformPool',
+            '_vestPool',
+            '_headgearPool',
+            '_weaponPool',
+            '_itemPool',
+            '_backpackList',
+            '_uniformList',
+            '_vestList',
+            '_headgearList',
+            '_weaponList',
+            '_itemList'
+        })
+
         self._compiled_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in self._patterns]
         self._variables = {}
         self._arrays = {}  # Store array variables
@@ -67,7 +89,7 @@ class SqfParser(BaseParser):
             re.compile(r'^-?\d+$'),  # Numeric values
             re.compile(r'^(?:true|false)$', re.IGNORECASE),  # Boolean values
             re.compile(r'^\[\s*\]$'),  # Empty arrays
-            re.compile(r'^"?(?:NONE|DEFAULT|FLY|FLYING)"?$', re.IGNORECASE),  # Common default strings with optional quotes
+            re.compile(r'^"?(?:NONE|DEFAULT|)"?$', re.IGNORECASE),  # Common default strings with optional quotes
             re.compile(r'^""?$'),  # Empty string with or without quotes
         ]
 
@@ -90,17 +112,101 @@ class SqfParser(BaseParser):
         # Add pattern for strict class detection
         self._class_pattern = re.compile(r'^\s*class\s+[a-zA-Z_][a-zA-Z0-9_]*\s*{', re.MULTILINE)
 
-        # Add patterns for UI/script elements to ignore
-        self._ui_patterns = [
-            re.compile(r'\\[A-Za-z0-9_\\]+'),  # File paths
-            re.compile(r'^[a-z_]+_arsenal$', re.IGNORECASE),  # Arsenal action names
-            re.compile(r'startpos'),  # Variable references
-            re.compile(r'^Personal\s+Arsenal$'),  # UI labels
-            re.compile(r'^\([^)]+\)$'),  # Expressions in parentheses
-        ]
+        # Define pattern categories for better organization
+        self._skip_patterns = {
+            'ui_elements': [
+                r'\\[A-Za-z0-9_\\]+',          # File paths
+                r'^[a-z_]+_arsenal$',           # Arsenal action names
+                r'^Personal\s+Arsenal$',         # UI labels
+                r'^\([^)]+\)$',                 # Expressions in parentheses
+            ],
+            'script_commands': [
+                r'cutText\s*\[',                # Screen transitions
+                r'displayText(?:Structured)?',   # Display text commands
+                r'systemChat\s*format',         # System chat messages
+            ],
+            'screen_effects': [
+                r'BLACKOUT|BLACK IN',           # Screen effects
+                r'FADE\s*(?:IN|OUT)',          # Fade effects
+            ],
+            'formatted_text': [
+                r'<t\s+color\s*=',              # HTML color tags
+                r'<br\s*/?>',                   # HTML breaks
+                r'<[^>]+>',                     # Any HTML tags
+            ],
+            'dialog_elements': [
+                r'[A-Z\s]+\s*AVAILABLE',        # Dialog titles in caps
+                r'Welcome to',                  # Welcome messages
+                r'TELEPORT|MOVING|CACHED',      # Common status messages
+            ],
+            'script_functions': [
+                r'(?:BIS|ace|pca)_fnc_\w+',     # Common function prefixes
+                r'\]\s*call\s+\w+_fnc_',        # Function calls
+                r'\s*=\s*\[[^\]]*call\s+',      # Assignments with calls
+            ],
+            'variable_refs': [
+                r'startpos',                    # Common variable names
+                r'IsCached',                    # State variables
+                r'^FLY$',                       # Script states
+            ],
+            'array_ops': [
+                r'private\s+_\w+\s*=\s*\[',     # Array assignments
+                r'params\s*\[',                 # Parameter arrays
+            ],
+            'format_strings': [
+                r'%\d+\s*-\s*[^"]+',           # Format strings with numbering
+                r'systemChat\s+format\s*\[',    # System chat format calls
+                r'format\s*\[[^]]*\]',          # Format function calls
+                r'["\']\s*,[^,]+,\s*["\']',     # String concatenation in format
+            ],
+            'script_elements': [
+                r'^_[a-zA-Z]\w*$',              # Variable names starting with _
+                r'(?:private|params)\s*\[',     # Variable declarations
+                r'waitUntil\s*{',               # Script control statements
+            ],
+            'formulas': [
+                r'\([^)]*[+\-*/][^)]*\)',       # Mathematical expressions in parentheses
+                r'\(\d*\*[^)]+\)',              # Multiplication expressions
+                r'selectBestPlaces\s*\[',       # selectBestPlaces commands
+                r'[^"]*(?:\+|\-|\*|\/)[^"]*',   # Any mathematical operators
+            ],
+            'expressions': [
+                r'[^"]*(?:hills|forest|trees|houses|meadow|windy|sea|deadBody)[^"]*',  # Terrain expressions
+                r'[^"]*(?:select|apply|sort|pushBack)[^"]*',  # Array operations
+            ]
+        }
+
+        # Compile all patterns
+        self._ui_patterns = []
+        for category, patterns in self._skip_patterns.items():
+            self._ui_patterns.extend(
+                re.compile(pattern, re.IGNORECASE) 
+                for pattern in patterns
+            )
+
+        # Add pattern for setVariable commands
+        self._set_variable_pattern = re.compile(
+            r'setVariable\s*\[\s*"([^"]+)".*?\]',
+            re.IGNORECASE | re.DOTALL
+        )
+
+        # Add pattern for addAction commands
+        self._addaction_pattern = re.compile(
+            r'addAction\s*\[\s*"([^"]+)"',
+            re.IGNORECASE | re.DOTALL
+        )
+
+        # Add pattern for #include directives
+        self._include_pattern = re.compile(
+            r'#include\s+"([^"]+)"',
+            re.IGNORECASE
+        )
 
     def _clean_sqf_code(self, content: str) -> str:
         """Clean SQF code and convert to single line for processing"""
+        # Remove #include directives
+        content = self._include_pattern.sub('', content)
+        
         # Remove comments
         content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)  # Single line comments
         content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)  # Multi-line comments
@@ -131,29 +237,52 @@ class SqfParser(BaseParser):
 
     def _is_script_parameter(self, value: str) -> bool:
         """Check if a value matches common script parameter patterns"""
+            
         if not value:
             return True
             
+        # Add check for pool/list variables
+        if any(value.endswith(suffix) for suffix in ['Pool', 'PoolWeighted', 'List']):
+            return True
+
         # Remove quotes for string comparison
         clean_value = value.strip('"')
-        
-        # Check for script control flags and special modes
-        script_flags = {'NONE', 'DEFAULT', 'FLY', 'FLYING', 'GUARD', 'DEBUG'}
-        if clean_value.upper() in script_flags:
+
+        # Check if value is a script or UI element
+        if self._is_ui_string(clean_value):
             return True
-            
-        # Also check if it's a simple numeric assignment
+
+        # Check if string starts with underscore (script variable)
+        if clean_value.startswith('_'):
+            return True
+
+        # Check for numeric values
         try:
             float(clean_value)
             return True
         except ValueError:
             pass
-            
-        # Check against parameter patterns
-        return any(pattern.match(clean_value) for pattern in self._param_patterns)
+
+        # Check for mathematical expressions
+        if any(x in clean_value for x in ['+', '-', '*', '/']):
+            return True
+
+        # Check for selectBestPlaces formulas
+        if 'hills' in clean_value.lower() or 'forest' in clean_value.lower():
+            return True
+
+        # Check common script values
+        return (
+            any(pattern.match(clean_value) for pattern in self._param_patterns) or
+            clean_value.upper() in {'NONE', 'DEFAULT', 'TRUE', 'FALSE'}
+        )
 
     def _is_ui_string(self, value: str) -> bool:
         """Check if string is UI-related and should be ignored"""
+        # Pre-check for format strings with % placeholder
+        if '%' in value and re.search(r'%\d+', value):
+            return True
+            
         return any(pattern.search(value) for pattern in self._ui_patterns)
 
     def _extract_variables(self, code: str) -> Dict[str, str]:
@@ -164,7 +293,6 @@ class SqfParser(BaseParser):
             var_name, var_value = match.groups()
             # Skip common script variables and parameter-like values
             if (var_name not in self._ignored_vars and 
-                not var_value.startswith(('$', 'WhiteHead_')) and
                 not self._is_script_parameter(var_value)):
                 variables[var_name] = var_value
         return variables
@@ -247,23 +375,36 @@ class SqfParser(BaseParser):
             if not content:
                 return ParseResult(classes, equipment)
 
-            # Skip parsing if file contains briefing content or settings
-            if self._is_briefing_content(content) or self._contains_settings(content):
+            # Skip parsing if file contains briefing content, settings, addAction commands or includes
+            if (self._is_briefing_content(content) or 
+                self._contains_settings(content) or
+                bool(self._addaction_pattern.search(content)) or
+                bool(self._include_pattern.search(content))):
                 return ParseResult(classes, equipment)
 
             # Clean and prepare code
-            cleaned_code = self._clean_sqf_code(content)
+            cleaned_code = re.sub(
+                self._set_variable_pattern,
+                '',
+                self._clean_sqf_code(content)
+            )
             
             # Extract variables and arrays
             self._variables = self._extract_variables(cleaned_code)
             self._extract_arrays(cleaned_code)
             
+            # Create a copy of variables before iteration
+            variables_copy = self._variables.copy()
+            
             # Add equipment from variable values
-            for var_value in self._variables.values():
+            for var_value in variables_copy.values():
                 self._add_equipment(equipment, var_value, file_path)
 
+            # Create a copy of arrays before iteration
+            arrays_copy = self._arrays.copy()
+
             # Process arrays
-            for items in self._arrays.values():
+            for items in arrays_copy.values():
                 for item in items:
                     self._add_equipment(equipment, item, file_path)
 
