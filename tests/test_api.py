@@ -15,7 +15,6 @@ def temp_cache_dir(tmp_path):
 @pytest.fixture
 def api(temp_cache_dir):
     config = MissionScannerAPIConfig(
-        cache_max_age=3600,
         cache_max_size=1000000,
         max_workers=2
     )
@@ -31,7 +30,6 @@ def test_api_initialization(temp_cache_dir):
         return None
     
     config = MissionScannerAPIConfig(
-        cache_max_age=1800,
         cache_max_size=500000,
         max_workers=4,
         error_handler=error_handler,
@@ -39,7 +37,6 @@ def test_api_initialization(temp_cache_dir):
     )
     
     api = MissionScannerAPI(temp_cache_dir, config)
-    assert api.config.cache_max_age == 1800
     assert api.config.cache_max_size == 500000
     assert api.config.max_workers == 4
     assert api.config.error_handler == error_handler

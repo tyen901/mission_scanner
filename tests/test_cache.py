@@ -130,6 +130,10 @@ def test_cache_save_load(tmp_path, cache_manager, sample_data):
     cache_manager.add_mission_data(sample_data)
     cache_file = tmp_path / "cache.json"
     
+    # Verify data was added successfully
+    assert len(cache_manager.get_all_classes()) > 0
+    assert len(cache_manager.get_all_equipment()) > 0
+    
     # Test saving
     cache_manager.save_to_disk(cache_file)
     assert cache_file.exists()
@@ -142,7 +146,6 @@ def test_cache_save_load(tmp_path, cache_manager, sample_data):
     assert new_manager.get_all_classes() == cache_manager.get_all_classes()
     assert new_manager.get_all_equipment() == cache_manager.get_all_equipment()
     assert new_manager._max_size == cache_manager._max_size
-    assert new_manager._max_cache_age == cache_manager._max_cache_age
 
 def test_save_empty_cache(cache_manager, tmp_path):
     """Test attempting to save empty cache"""
@@ -168,4 +171,3 @@ def test_cache_serialization_round_trip(sample_data):
     # Compare original and restored cache
     assert restored_cache.classes == cache.classes
     assert restored_cache.equipment == cache.equipment
-    assert restored_cache.last_updated == cache.last_updated

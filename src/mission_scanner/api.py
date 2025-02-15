@@ -12,7 +12,6 @@ from .scanner import MissionScanner
 @dataclass
 class MissionScannerAPIConfig:
     """Configuration settings for AssetAPI"""
-    cache_max_age: int = 3600
     cache_max_size: int = 1_000_000
     max_workers: Optional[int] = None
     error_handler: Optional[Callable[[Exception], None]] = None
