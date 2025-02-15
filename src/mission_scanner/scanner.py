@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, List, Pattern
+from typing import Dict, List, Pattern, Optional
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .models import ScanResult, MissionClass, Equipment
@@ -19,12 +19,14 @@ class MissionScanner:
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self.progress_callback = None
 
-    def scan_directory(self, path: Path, patterns: List[Pattern] = None) -> ScanResult:
+    def scan_directory(self, path: Path, patterns: Optional[List[Pattern]] = None) -> ScanResult:
         """Scan directory for class and equipment definitions"""
         classes: Dict[str, MissionClass] = {}
         equipment: Dict[str, Equipment] = {}
         errors: List[str] = []
         futures = []
+
+        patterns = patterns or []  # Convert None to empty list
 
         # Collect all mission files
         for file_path in path.rglob('*'):
@@ -58,10 +60,10 @@ class MissionScanner:
             return {}, {}
 
         try:
-            file_classes, file_equipment = parser.parse(file_path)
+            result = parser.parse(file_path)
             return (
-                {cls.name: cls for cls in file_classes},
-                {eq.name: eq for eq in file_equipment}
+                result.classes,
+                {eq.name: eq for eq in result.equipment}
             )
         except Exception as e:
             logger.error(f"Error scanning file {file_path}: {e}")

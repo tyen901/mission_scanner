@@ -1,29 +1,28 @@
-from typing import Dict, Set, Optional, Mapping
-from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import Dict, Set, Optional, Mapping, FrozenSet
+from dataclasses import dataclass, field
 from datetime import datetime
 
 @dataclass(frozen=True)
 class MissionCache:
     """Immutable cache container for mission data."""
-    classes: Mapping[str, Set[str]] = field(default_factory=dict)
-    equipment: Mapping[str, Set[str]] = field(default_factory=dict)
+    classes: Mapping[str, FrozenSet[str]] = field(default_factory=MappingProxyType)
+    equipment: Mapping[str, FrozenSet[str]] = field(default_factory=MappingProxyType)
     last_updated: datetime = field(default_factory=datetime.now)
-
-    def __post_init__(self) -> None:
-        """Convert mutable collections to immutable ones after initialization."""
-        object.__setattr__(self, 'classes', MappingProxyType(dict(self.classes)))
-        object.__setattr__(self, 'equipment', MappingProxyType(dict(self.equipment)))
 
     @classmethod
     def create_bulk(cls, data: Dict[str, Dict[str, Set[str]]]) -> 'MissionCache':
         """Create a new cache instance with bulk data."""
-        classes = data.get('classes', {})
-        equipment = data.get('equipment', {})
-
+        immutable_classes = MappingProxyType({
+            k: frozenset(v) for k, v in data.get('classes', {}).items()
+        })
+        immutable_equipment = MappingProxyType({
+            k: frozenset(v) for k, v in data.get('equipment', {}).items()
+        })
+        
         return cls(
-            classes={k: frozenset(v) for k, v in classes.items()},
-            equipment={k: frozenset(v) for k, v in equipment.items()},
+            classes=immutable_classes,
+            equipment=immutable_equipment,
             last_updated=datetime.now()
         )
 

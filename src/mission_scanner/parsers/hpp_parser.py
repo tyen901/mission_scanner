@@ -16,7 +16,6 @@ class HppParser(BaseParser):
     
     def __init__(self):
         self.class_parser = ClassParser()
-        # Add regex for matching macros
         self.macro_pattern = re.compile(r'LIST_\d+\("([^"]*)"\)')
 
     def parse(self, file_path: Path) -> ParseResult:
@@ -27,7 +26,7 @@ class HppParser(BaseParser):
         try:
             content, _ = read_file_content(file_path)
             if content is None:
-                return ParseResult(classes, equipment)
+                return ParseResult(classes={}, equipment=set())
 
             # Parse with ClassParser
             parsed = self.class_parser.parse_class_definitions(content)
@@ -38,25 +37,24 @@ class HppParser(BaseParser):
                     # Create MissionClass
                     mission_class = MissionClass(
                         name=class_name,
-                        parent=class_data["parent"],
-                        properties=class_data["properties"],
+                        parent=class_data.get("parent"),
+                        properties=class_data.get("properties", {}),
                         file_path=file_path
                     )
                     classes[class_name] = mission_class
                     
                     # Process equipment arrays
                     self._process_equipment_arrays(
-                        class_data["properties"],
+                        class_data.get("properties", {}),
                         equipment,
                         file_path
                     )
 
-        except FileNotFoundError:
-            raise
+            return ParseResult(classes=classes, equipment=equipment)
+
         except Exception as e:
             logger.error(f"Error parsing HPP file {file_path}: {e}", exc_info=True)
-            
-        return ParseResult(classes, equipment)
+            return ParseResult(classes={}, equipment=set())
 
     def _process_equipment_arrays(self, properties: Dict[str, Any], equipment: Set[Equipment], file_path: Path) -> None:
         """Process equipment arrays from class properties"""

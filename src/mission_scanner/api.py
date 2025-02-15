@@ -53,7 +53,13 @@ class MissionScannerAPI:
                 raise FileNotFoundError(f"Directory not found: {path}")
 
             self._logger.debug(f"Scanning directory {path}")
-            result = self._scanner.scan_directory(path, patterns)
+            result = self._scanner.scan_directory(path, patterns or [])
+            
+            # Update cache with scan results
+            self._cache.add_mission_data({
+                'classes': {name: {str(cls.file_path)} for name, cls in result.classes.items()},
+                'equipment': {eq.name: {str(eq.file_path)} for eq in result.equipment.values()}
+            })
             
             return result
             
@@ -75,15 +81,12 @@ class MissionScannerAPI:
         with self._stats_lock:
             stats = dict(self._scan_stats)
         
-        classes = len(self.get_all_classes())
-        equipment = len(self.get_all_equipment())
+        stats.update({
+            'total_classes': len(self._cache.get_all_classes()),
+            'total_equipment': len(self._cache.get_all_equipment())
+        })
         
-        return {
-            'total_scans': stats['total_scans'],
-            'failed_scans': stats['failed_scans'],
-            'total_classes': classes,
-            'total_equipment': equipment
-        }
+        return stats
 
     def _handle_error(self, error: Exception, context: str = "") -> None:
         """Central error handling"""

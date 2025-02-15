@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 from .models import MissionClass, Equipment
 from .parsers.parser_utils import read_file_content
 
@@ -12,6 +12,10 @@ class ParseResult:
     """Result structure matching test expectations"""
     classes: Dict[str, MissionClass]
     equipment: Set[Equipment]
+
+    def to_tuple(self) -> Tuple[Dict[str, MissionClass], Set[Equipment]]:
+        """Convert result to tuple format for backward compatibility"""
+        return (self.classes, self.equipment)
 
 class BaseParser:
     """Base class for file parsers"""

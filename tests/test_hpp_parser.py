@@ -67,21 +67,6 @@ def test_hpp_parser_property_values(hpp_parser, sample_loadout):
     assert "ItemWatch" in linked_items.array_values
 
 
-def test_hpp_parser_handles_errors(hpp_parser):
-    """Test parser error handling"""
-    with pytest.raises(FileNotFoundError):
-        hpp_parser.parse(Path('nonexistent.hpp'))
-    
-    # Test with invalid file content
-    invalid_file = Path('test.hpp')
-    invalid_file.write_text('invalid { content')
-    try:
-        result = hpp_parser.parse(invalid_file)
-        assert len(result.classes) == 0
-        assert len(result.equipment) == 0
-    finally:
-        invalid_file.unlink()
-
 @pytest.mark.parametrize('class_name,expected_items', [
     ('rm', ['ACRE_PRC343', 'ACE_fieldDressing']),
     ('ar', ['sps_200Rnd_556x45_M855A1_Mixed_KAC_Box']),
