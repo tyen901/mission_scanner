@@ -6,8 +6,8 @@ from datetime import datetime
 @dataclass(frozen=True)
 class MissionCache:
     """Immutable cache container for mission data."""
-    classes: Mapping[str, FrozenSet[str]] = field(default_factory=MappingProxyType)
-    equipment: Mapping[str, FrozenSet[str]] = field(default_factory=MappingProxyType)
+    classes: Mapping[str, FrozenSet[str]] = field(default_factory=lambda: MappingProxyType({}))
+    equipment: Mapping[str, FrozenSet[str]] = field(default_factory=lambda: MappingProxyType({}))
     last_updated: datetime = field(default_factory=datetime.now)
 
     @classmethod

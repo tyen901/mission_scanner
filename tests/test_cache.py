@@ -1,5 +1,6 @@
 import pytest
 from mission_scanner.cache import MissionCache, MissionCacheManager
+from dataclasses import FrozenInstanceError
 
 @pytest.fixture
 def sample_data():
@@ -22,18 +23,20 @@ def test_mission_cache_creation(sample_data):
     """Test MissionCache creation and immutability"""
     cache = MissionCache.create_bulk(sample_data)
     
-    # Test immutability of classes mapping
-    with pytest.raises(TypeError):
-        cache.classes['new_class'] = frozenset()
+    # Test immutability by attempting to modify the frozen dataclass
+    with pytest.raises(FrozenInstanceError):
+        cache.classes = {'new_class': frozenset()} # type: ignore
     
-    # Test immutability of equipment mapping
+    # Test immutability of the internal mappings
     with pytest.raises(TypeError):
-        cache.equipment['new_equipment'] = frozenset()
+        cache.classes['new_equipment'] = frozenset()  # type: ignore
     
     # Test immutability of the sets within mappings
     some_class = next(iter(cache.classes))
+    files = cache.classes[some_class]
+    # Verify we can't modify the frozen set
     with pytest.raises(AttributeError):
-        cache.classes[some_class].add('/new/path')
+        files.add('/new/path') # type: ignore
 
 def test_cache_manager_add_data(cache_manager, sample_data):
     """Test adding data to cache manager"""

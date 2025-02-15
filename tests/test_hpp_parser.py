@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from mission_scanner.parsers import HppParser
 from class_scanner.models import PropertyValue
 
