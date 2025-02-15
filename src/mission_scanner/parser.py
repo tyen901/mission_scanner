@@ -35,3 +35,8 @@ class BaseParser:
     def _parse_content(self, content: str, file_path: Path) -> ParseResult:
         """Parse string content and return found classes and equipment"""
         raise NotImplementedError
+
+"""Legacy module for backward compatibility"""
+from .base_parser import BaseParser, ParseResult
+
+__all__ = ['BaseParser', 'ParseResult']

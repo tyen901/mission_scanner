@@ -124,3 +124,48 @@ def test_cache_manager_multiple_updates(cache_manager):
     assert 'class1' in first_classes
     assert 'class2' in second_classes
     assert 'class1' not in second_classes
+
+def test_cache_save_load(tmp_path, cache_manager, sample_data):
+    """Test saving and loading cache to/from disk"""
+    cache_manager.add_mission_data(sample_data)
+    cache_file = tmp_path / "cache.json"
+    
+    # Test saving
+    cache_manager.save_to_disk(cache_file)
+    assert cache_file.exists()
+    
+    # Create new cache manager and load saved data
+    new_manager = MissionCacheManager()
+    new_manager.load_from_disk(cache_file)
+    
+    # Verify loaded data matches original
+    assert new_manager.get_all_classes() == cache_manager.get_all_classes()
+    assert new_manager.get_all_equipment() == cache_manager.get_all_equipment()
+    assert new_manager._max_size == cache_manager._max_size
+    assert new_manager._max_cache_age == cache_manager._max_cache_age
+
+def test_save_empty_cache(cache_manager, tmp_path):
+    """Test attempting to save empty cache"""
+    cache_file = tmp_path / "empty_cache.json"
+    with pytest.raises(ValueError, match="No cache data to save"):
+        cache_manager.save_to_disk(cache_file)
+
+def test_load_nonexistent_cache(cache_manager, tmp_path):
+    """Test loading from nonexistent cache file"""
+    cache_file = tmp_path / "nonexistent.json"
+    with pytest.raises(FileNotFoundError):
+        cache_manager.load_from_disk(cache_file)
+
+def test_cache_serialization_round_trip(sample_data):
+    """Test cache serialization/deserialization"""
+    # Create cache with sample data
+    cache = MissionCache.create_bulk(sample_data)
+    
+    # Convert to dict and back
+    cache_dict = cache.to_dict()
+    restored_cache = MissionCache.from_dict(cache_dict)
+    
+    # Compare original and restored cache
+    assert restored_cache.classes == cache.classes
+    assert restored_cache.equipment == cache.equipment
+    assert restored_cache.last_updated == cache.last_updated

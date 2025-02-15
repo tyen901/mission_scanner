@@ -1,7 +1,9 @@
+import json
 from types import MappingProxyType
-from typing import Dict, Set, Optional, Mapping, FrozenSet
+from typing import Dict, Set, Optional, Mapping, FrozenSet, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 @dataclass(frozen=True)
 class MissionCache:
@@ -24,6 +26,23 @@ class MissionCache:
             classes=immutable_classes,
             equipment=immutable_equipment,
             last_updated=datetime.now()
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert cache to dictionary for serialization."""
+        return {
+            'classes': {k: list(v) for k, v in self.classes.items()},
+            'equipment': {k: list(v) for k, v in self.equipment.items()},
+            'last_updated': self.last_updated.isoformat()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'MissionCache':
+        """Create cache from dictionary."""
+        return cls(
+            classes=MappingProxyType({k: frozenset(v) for k, v in data['classes'].items()}),
+            equipment=MappingProxyType({k: frozenset(v) for k, v in data['equipment'].items()}),
+            last_updated=datetime.fromisoformat(data['last_updated'])
         )
 
 class MissionCacheManager:
@@ -75,4 +94,31 @@ class MissionCacheManager:
         if not self._cache:
             return False
         return (datetime.now() - self._cache.last_updated).seconds < self._max_cache_age
+
+    def save_to_disk(self, path: Path) -> None:
+        """Save cache to disk."""
+        if not self._cache:
+            raise ValueError("No cache data to save")
+            
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cache_data = {
+            'max_size': self._max_size,
+            'max_cache_age': self._max_cache_age,
+            'cache': self._cache.to_dict()
+        }
+        
+        with path.open('w') as f:
+            json.dump(cache_data, f, indent=2)
+
+    def load_from_disk(self, path: Path) -> None:
+        """Load cache from disk."""
+        if not path.exists():
+            raise FileNotFoundError(f"Cache file not found: {path}")
+            
+        with path.open('r') as f:
+            data = json.load(f)
+            
+        self._max_size = data['max_size']
+        self._max_cache_age = data['max_cache_age']
+        self._cache = MissionCache.from_dict(data['cache'])
 
